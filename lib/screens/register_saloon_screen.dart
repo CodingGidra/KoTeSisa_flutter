@@ -35,6 +35,23 @@ class _RegisterSaloonScreenState extends State<RegisterSaloonScreen> {
   final RegisterSaloonService _service =
   RegisterSaloonService(baseUrl: 'http://10.0.2.2:5029');
 
+  // ---- helpers za konverziju ----
+  TimeOfDay? _parseHHmmss(String? v) {
+    if (v == null || v.isEmpty) return null;
+    final parts = v.split(':');
+    if (parts.length < 2) return null;
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    return TimeOfDay(hour: h, minute: m);
+  }
+
+  String _fmtHHmmss(TimeOfDay t) {
+    final h = t.hour.toString().padLeft(2, '0');
+    final m = t.minute.toString().padLeft(2, '0');
+    return '$h:$m:00';
+  }
+  // --------------------------------
+
   @override
   void initState() {
     super.initState();
@@ -49,12 +66,13 @@ class _RegisterSaloonScreenState extends State<RegisterSaloonScreen> {
       _telefonCtl.text = s.brojTelefona;
       _emailCtl.text = s.email;
       _adminImeCtl.text = s.adminIme;
-      _passwordCtl.text = s.password;        // (kasnije ćemo hashirati)
+      _passwordCtl.text = s.password;        // (kasnije hash)
       _logoCtl.text = s.logo ?? '';
       _radnoCtl.text = s.radnoVrijeme ?? '';
 
-      // Ako želiš, ovdje možeš parsirati s.radnoVrijeme u _vrijemeOd/_vrijemeDo,
-      // ali za baby-step to nije potrebno.
+      // PREFILL pickera iz novih polja
+      _vrijemeOd = _parseHHmmss(s.radnoVrijemeOd);
+      _vrijemeDo = _parseHHmmss(s.radnoVrijemeDo);
     }
   }
 
@@ -100,15 +118,17 @@ class _RegisterSaloonScreenState extends State<RegisterSaloonScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Ako je korisnik izabrao pickere, koristimo njih;
-    // inače: u edit modu zadržimo postojeće radnoVrijeme iz baze (ako ga ima),
-    // a u create modu uzimamo iz _radnoCtl (ako je upisao).
+    // Legacy string za kompatibilnost (može ostati)
     final radnoVrijemeStr = (_vrijemeOd != null && _vrijemeDo != null)
         ? "${_vrijemeOd!.format(context)} - ${_vrijemeDo!.format(context)}"
         : (widget.isEdit
         ? (widget.saloon?.radnoVrijeme ??
         (_radnoCtl.text.trim().isEmpty ? null : _radnoCtl.text.trim()))
         : (_radnoCtl.text.trim().isEmpty ? null : _radnoCtl.text.trim()));
+
+    // NOVO: vrijednosti za BE "HH:mm:ss"
+    final rvOd = _vrijemeOd != null ? _fmtHHmmss(_vrijemeOd!) : null;
+    final rvDo = _vrijemeDo != null ? _fmtHHmmss(_vrijemeDo!) : null;
 
     final saloon = Saloon(
       saloonId: widget.isEdit ? widget.saloon?.saloonId : null, // BITNO za PUT
@@ -118,13 +138,20 @@ class _RegisterSaloonScreenState extends State<RegisterSaloonScreen> {
       grad: _gradCtl.text.trim(),
       postanskiBroj:
       _postanskiCtl.text.trim().isEmpty ? null : _postanskiCtl.text.trim(),
-      lokacija: _lokacijaCtl.text.trim().isEmpty ? null : _lokacijaCtl.text.trim(),
+      lokacija:
+      _lokacijaCtl.text.trim().isEmpty ? null : _lokacijaCtl.text.trim(),
       brojTelefona: _telefonCtl.text.trim(),
       email: _emailCtl.text.trim(),
       adminIme: _adminImeCtl.text.trim(),
-      password: _passwordCtl.text.trim(),
+      password: widget.isEdit
+          ? ( _passwordCtl.text.trim().isEmpty
+          ? widget.saloon?.password ?? ""
+          : _passwordCtl.text.trim())
+          : _passwordCtl.text.trim(),
       radnoVrijeme: radnoVrijemeStr,
       logo: _logoCtl.text.trim().isEmpty ? null : _logoCtl.text.trim(),
+      radnoVrijemeOd: rvOd,
+      radnoVrijemeDo: rvDo,
     );
 
     try {
@@ -159,6 +186,7 @@ class _RegisterSaloonScreenState extends State<RegisterSaloonScreen> {
           _vrijemeOd = null;
           _vrijemeDo = null;
         });
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
       if (!mounted) return;
@@ -194,7 +222,14 @@ class _RegisterSaloonScreenState extends State<RegisterSaloonScreen> {
                 controller: _passwordCtl,
                 decoration: _dec('Password'),
                 obscureText: true,
-                validator: _req,
+                  validator: (v) {
+                    if (!widget.isEdit) {
+                      // prilikom registracije obavezno
+                      return (v == null || v.trim().isEmpty) ? 'Obavezno polje' : null;
+                    }
+                    // prilikom editiranja može biti prazno
+                    return null;
+                  },
               ),
               const SizedBox(height: 12),
               TextFormField(

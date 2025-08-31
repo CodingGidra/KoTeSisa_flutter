@@ -37,6 +37,31 @@ class RegisterSaloonService {
     }
   }
 
+  Future<List<Saloon>> search(String query) async {
+    if (query.trim().length < 3) return [];
+    final uri = Uri.parse('$baseUrl/saloons/search?q=${Uri.encodeQueryComponent(query)}');
+    final resp = await http.get(uri, headers: {'Accept': 'application/json'});
+
+    if (resp.statusCode == 200) {
+      final list = (jsonDecode(resp.body) as List)
+          .cast<Map<String, dynamic>>()
+          .map((m) => Saloon.fromJson(m))
+          .toList();
+      return list;
+    } else {
+      throw Exception('Greška ${resp.statusCode}: ${resp.body}');
+    }
+  }
+
+  Future<void> deleteById(int id) async {
+    final uri = Uri.parse('$baseUrl/saloons/$id');
+    final resp = await http.delete(uri, headers: {'Accept': 'application/json'});
+    if (resp.statusCode != 200 && resp.statusCode != 204) {
+      throw Exception('Delete failed (${resp.statusCode}): ${resp.body}');
+    }
+  }
+
+
   Future<Saloon> register(Saloon saloon) async {
     final uri = Uri.parse('$baseUrl/saloons');
     final resp = await http.post(
