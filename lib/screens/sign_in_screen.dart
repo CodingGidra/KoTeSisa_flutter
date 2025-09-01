@@ -55,6 +55,7 @@ class _SignInScreenState extends State<SignInScreen> {
             nazivSalona: details.nazivSalona,
             logoUrl: details.logo,
             radnoVrijeme: details.radnoVrijeme,
+            isAdmin: true,
           ),
         ),
       );

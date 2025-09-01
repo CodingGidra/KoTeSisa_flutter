@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import '../services/register_saloon_service.dart';
 import '../models/saloon.dart';
 import 'register_saloon_screen.dart';
-import 'submit_termin_screen.dart';
+import 'submit_terming_screen.dart';
 
 class SaloonDetailsScreen extends StatefulWidget {
   final int saloonId;
-  final String adminIme;      // početne vrijednosti za instant prikaz
+  final String adminIme;
   final String nazivSalona;
   final String? logoUrl;
   final String? radnoVrijeme;
+  final bool isAdmin;
 
   const SaloonDetailsScreen({
     super.key,
@@ -18,6 +19,7 @@ class SaloonDetailsScreen extends StatefulWidget {
     required this.nazivSalona,
     this.logoUrl,
     this.radnoVrijeme,
+    this.isAdmin = false,
   });
 
   @override
@@ -27,12 +29,13 @@ class SaloonDetailsScreen extends StatefulWidget {
 class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
   final _svc = RegisterSaloonService(baseUrl: 'http://10.0.2.2:5029');
 
-  Saloon? _saloon;        // 👈 držimo CIJELI model
+  Saloon? _saloon;
   bool _loading = false;
 
   @override
   void initState() {
     super.initState();
+    // inicijalno popunimo osnovne podatke za odmah prikaz
     _saloon = Saloon(
       saloonId: widget.saloonId,
       nazivSalona: widget.nazivSalona,
@@ -44,8 +47,7 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
       password: '',
       adresaBroj: null,
       postanskiBroj: null,
-      lokacija: widget.logoUrl,
-      radnoVrijeme: widget.radnoVrijeme,
+      lokacija: null,
       logo: widget.logoUrl,
     );
     _refreshFromApi();
@@ -57,7 +59,7 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
       final fresh = await _svc.fetchById(widget.saloonId);
       if (mounted) setState(() => _saloon = fresh);
     } catch (_) {
-      // možeš dodati SnackBar ako želiš
+      // po želji: SnackBar
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -106,15 +108,17 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
               child: Text(
                 s?.nazivSalona ?? '',
                 style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w700),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 12),
-            Text(
-              s?.adminIme ?? '',
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
-            ),
+              Text(
+                s!.adminIme,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
           ],
         ),
       ),
@@ -124,13 +128,14 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
             padding: const EdgeInsets.all(16),
             child: ListView(
               children: [
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton(
-                    onPressed: _openEditAndRefresh,
-                    child: const Text('Izmijeni info'),
+                if (widget.isAdmin)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton(
+                      onPressed: _openEditAndRefresh,
+                      child: const Text('Izmijeni info'),
+                    ),
                   ),
-                ),
                 const SizedBox(height: 16),
                 Card(
                   color: Colors.grey[900],
@@ -139,15 +144,18 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Radno vrijeme',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold)),
+                        const Text(
+                          'Radno vrijeme',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         const SizedBox(height: 6),
                         Text(
-                          (s?.radnoVrijeme != null &&
-                              s!.radnoVrijeme!.isNotEmpty)
-                              ? s.radnoVrijeme!
+                          (s?.radnoVrijemeOd != null &&
+                              s!.radnoVrijemeDo!.isNotEmpty)
+                              ? "${s!.radnoVrijemeOd!.substring(0, 5)} - ${s.radnoVrijemeDo!.substring(0, 5)}"
                               : 'Nije postavljeno',
                           style: const TextStyle(color: Colors.white70),
                         ),
@@ -157,7 +165,7 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // 👇 Novi button za rezervaciju termina
+                // Rezervacija termina (vidljivo svima)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -165,7 +173,9 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                       backgroundColor: Colors.yellow,
                       foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(
-                          vertical: 16, horizontal: 18),
+                        vertical: 16,
+                        horizontal: 18,
+                      ),
                       elevation: 6,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -181,99 +191,115 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                            builder: (_) => const SubmitTerminScreen()),
+                          builder: (_) => const SubmitTerminScreen(),
+                        ),
                       );
                     },
                   ),
                 ),
 
                 const SizedBox(height: 24),
-                Row(
-                  children: [
-                    // Delete Saloon
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.yellow,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: const BorderSide(
-                                color: Colors.yellow, width: 1),
+                if (widget.isAdmin) // ✅ admin-only dugmad
+                  Row(
+                    children: [
+                      // Delete Saloon
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.yellow,
+                            padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: const BorderSide(
+                                color: Colors.yellow,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          onPressed: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                backgroundColor: Colors.grey[900],
+                                title: const Text(
+                                  'Obrisati salon?',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                                content: const Text(
+                                  'Ova radnja je trajna i ne može se poništiti.',
+                                  style:
+                                  TextStyle(color: Colors.white70),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                        foregroundColor: Colors.red),
+                                    onPressed: () =>
+                                        Navigator.of(ctx).pop(true),
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
+                              ),
+                            ) ??
+                                false;
+
+                            if (!confirmed) return;
+
+                            try {
+                              await _svc.deleteById(widget.saloonId);
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Salon uspješno obrisan'),
+                                ),
+                              );
+                              Navigator.of(context)
+                                  .popUntil((route) => route.isFirst);
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      'Greška pri brisanju: $e'),
+                                ),
+                              );
+                            }
+                          },
+                          child: const Text(
+                            'Delete saloon',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
-                        onPressed: () async {
-                          final confirmed = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              backgroundColor: Colors.grey[900],
-                              title: const Text('Obrisati salon?',
-                                  style: TextStyle(color: Colors.white)),
-                              content: const Text(
-                                'Ova radnja je trajna i ne može se poništiti.',
-                                style: TextStyle(color: Colors.white70),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(ctx).pop(false),
-                                  child: const Text('Cancel'),
-                                ),
-                                TextButton(
-                                  style: TextButton.styleFrom(
-                                      foregroundColor: Colors.red),
-                                  onPressed: () =>
-                                      Navigator.of(ctx).pop(true),
-                                  child: const Text('Delete'),
-                                ),
-                              ],
-                            ),
-                          ) ??
-                              false;
-
-                          if (!confirmed) return;
-
-                          try {
-                            await _svc.deleteById(widget.saloonId);
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('Salon uspješno obrisan')),
-                            );
+                      ),
+                      const SizedBox(width: 12),
+                      // Logout
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.black,
+                            padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          onPressed: () {
                             Navigator.of(context)
                                 .popUntil((route) => route.isFirst);
-                          } catch (e) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                  content: Text('Greška pri brisanju: $e')),
-                            );
-                          }
-                        },
-                        child: const Text('Delete saloon',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Logout
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          },
+                          child: const Text(
+                            'Logout',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
-                        onPressed: () {
-                          Navigator.of(context)
-                              .popUntil((route) => route.isFirst);
-                        },
-                        child: const Text('Logout',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
             ),
           ),

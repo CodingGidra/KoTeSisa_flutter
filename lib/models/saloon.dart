@@ -8,7 +8,6 @@ class Saloon {
   final String? lokacija;
   final String brojTelefona;
   final String email;
-  final String? radnoVrijeme;
   final String? logo;
   final String adminIme;
   final String password;
@@ -25,12 +24,11 @@ class Saloon {
     this.lokacija = "",
     required this.brojTelefona,
     required this.email,
-    this.radnoVrijeme,
     this.logo,
     required this.adminIme,
     required this.password,
     this.radnoVrijemeOd,
-    this.radnoVrijemeDo
+    this.radnoVrijemeDo,
   });
 
   Map<String, dynamic> toJson() {
@@ -45,7 +43,6 @@ class Saloon {
       "email": email,
       "adminIme": adminIme,
       "password": password,
-      "radnoVrijeme": radnoVrijeme,
       "logo": logo,
       "radnoVrijemeOd": radnoVrijemeOd,
       "radnoVrijemeDo": radnoVrijemeDo,
@@ -69,7 +66,6 @@ class Saloon {
     email: json["email"] ?? "",
     adminIme: json["adminIme"] ?? "",
     password: json["password"] ?? "",
-    radnoVrijeme: json["radnoVrijeme"] as String?,
     radnoVrijemeOd: json['radnoVrijemeOd'] as String?,
     radnoVrijemeDo: json['radnoVrijemeDo'] as String?,
     logo: json["logo"] as String?,

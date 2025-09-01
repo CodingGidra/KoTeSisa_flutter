@@ -68,9 +68,6 @@ class _RegisterSaloonScreenState extends State<RegisterSaloonScreen> {
       _adminImeCtl.text = s.adminIme;
       _passwordCtl.text = s.password;        // (kasnije hash)
       _logoCtl.text = s.logo ?? '';
-      _radnoCtl.text = s.radnoVrijeme ?? '';
-
-      // PREFILL pickera iz novih polja
       _vrijemeOd = _parseHHmmss(s.radnoVrijemeOd);
       _vrijemeDo = _parseHHmmss(s.radnoVrijemeDo);
     }
@@ -118,14 +115,6 @@ class _RegisterSaloonScreenState extends State<RegisterSaloonScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Legacy string za kompatibilnost (može ostati)
-    final radnoVrijemeStr = (_vrijemeOd != null && _vrijemeDo != null)
-        ? "${_vrijemeOd!.format(context)} - ${_vrijemeDo!.format(context)}"
-        : (widget.isEdit
-        ? (widget.saloon?.radnoVrijeme ??
-        (_radnoCtl.text.trim().isEmpty ? null : _radnoCtl.text.trim()))
-        : (_radnoCtl.text.trim().isEmpty ? null : _radnoCtl.text.trim()));
-
     // NOVO: vrijednosti za BE "HH:mm:ss"
     final rvOd = _vrijemeOd != null ? _fmtHHmmss(_vrijemeOd!) : null;
     final rvDo = _vrijemeDo != null ? _fmtHHmmss(_vrijemeDo!) : null;
@@ -148,7 +137,6 @@ class _RegisterSaloonScreenState extends State<RegisterSaloonScreen> {
           ? widget.saloon?.password ?? ""
           : _passwordCtl.text.trim())
           : _passwordCtl.text.trim(),
-      radnoVrijeme: radnoVrijemeStr,
       logo: _logoCtl.text.trim().isEmpty ? null : _logoCtl.text.trim(),
       radnoVrijemeOd: rvOd,
       radnoVrijemeDo: rvDo,
