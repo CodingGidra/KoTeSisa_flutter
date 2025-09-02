@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import '../services/register_saloon_service.dart';
 import '../models/saloon.dart';
+import '../helpers/time_helpers.dart';
 import 'register_saloon_screen.dart';
-import 'submit_terming_screen.dart';
+import 'submit_termin_screen.dart';
 
 class SaloonDetailsScreen extends StatefulWidget {
   final int saloonId;
   final String adminIme;
   final String nazivSalona;
   final String? logoUrl;
-  final String? radnoVrijeme;
+  final String? radnoVrijeme; // opcionalno ako koristiš drugdje
   final bool isAdmin;
 
   const SaloonDetailsScreen({
@@ -35,7 +36,7 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    // inicijalno popunimo osnovne podatke za odmah prikaz
+    // inicijalni objekat da UI ne puca dok se učita sa BE
     _saloon = Saloon(
       saloonId: widget.saloonId,
       nazivSalona: widget.nazivSalona,
@@ -49,6 +50,8 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
       postanskiBroj: null,
       lokacija: null,
       logo: widget.logoUrl,
+      radnoVrijemeOd: null,
+      radnoVrijemeDo: null,
     );
     _refreshFromApi();
   }
@@ -59,7 +62,7 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
       final fresh = await _svc.fetchById(widget.saloonId);
       if (mounted) setState(() => _saloon = fresh);
     } catch (_) {
-      // po želji: SnackBar
+      // po želji: SnackBar za grešku
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -98,7 +101,7 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
               child: SizedBox(
                 width: 36,
                 height: 36,
-                child: (s?.logo != null && s!.logo!.isNotEmpty)
+                child: (s?.logo != null && (s!.logo!.isNotEmpty))
                     ? Image.network(s.logo!, fit: BoxFit.cover)
                     : Container(color: Colors.grey[800]),
               ),
@@ -115,10 +118,10 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
               ),
             ),
             const SizedBox(width: 12),
-              Text(
-                s!.adminIme,
-                style: const TextStyle(color: Colors.white70, fontSize: 14),
-              ),
+            Text(
+              s?.adminIme ?? '',
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+            ),
           ],
         ),
       ),
@@ -137,6 +140,8 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                     ),
                   ),
                 const SizedBox(height: 16),
+
+                // Radno vrijeme
                 Card(
                   color: Colors.grey[900],
                   child: Padding(
@@ -154,8 +159,10 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                         const SizedBox(height: 6),
                         Text(
                           (s?.radnoVrijemeOd != null &&
-                              s!.radnoVrijemeDo!.isNotEmpty)
-                              ? "${s!.radnoVrijemeOd!.substring(0, 5)} - ${s.radnoVrijemeDo!.substring(0, 5)}"
+                              s!.radnoVrijemeOd!.isNotEmpty &&
+                              s.radnoVrijemeDo != null &&
+                              s.radnoVrijemeDo!.isNotEmpty)
+                              ? "${s.radnoVrijemeOd!.substring(0, 5)} - ${s.radnoVrijemeDo!.substring(0, 5)}"
                               : 'Nije postavljeno',
                           style: const TextStyle(color: Colors.white70),
                         ),
@@ -163,9 +170,10 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                     ),
                   ),
                 ),
+
                 const SizedBox(height: 16),
 
-                // Rezervacija termina (vidljivo svima)
+                // Rezervacija termina
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -185,13 +193,33 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                     icon: const Icon(Icons.calendar_today, size: 20),
                     label: const Text(
                       'Rezerviši termin',
-                      style:
-                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     onPressed: () {
+                      final s = _saloon;
+
+                      final imaRadno = s != null &&
+                          (s.radnoVrijemeOd?.isNotEmpty ?? false) &&
+                          (s.radnoVrijemeDo?.isNotEmpty ?? false);
+
+                      if (!imaRadno) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Radno vrijeme nije postavljeno')),
+                        );
+                        return;
+                      }
+
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const SubmitTerminScreen(),
+                          builder: (_) => SubmitTerminScreen(),
+                          settings: RouteSettings(
+                            arguments: {
+                              'saloonId': s!.saloonId,
+                              'nazivSalona': s.nazivSalona,
+                              'radnoVrijemeOd': s.radnoVrijemeOd,
+                              'radnoVrijemeDo': s.radnoVrijemeDo,
+                            },
+                          ),
                         ),
                       );
                     },
@@ -199,7 +227,8 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                 ),
 
                 const SizedBox(height: 24),
-                if (widget.isAdmin) // ✅ admin-only dugmad
+
+                if (widget.isAdmin)
                   Row(
                     children: [
                       // Delete Saloon
@@ -208,14 +237,10 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red,
                             foregroundColor: Colors.yellow,
-                            padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
-                              side: const BorderSide(
-                                color: Colors.yellow,
-                                width: 1,
-                              ),
+                              side: const BorderSide(color: Colors.yellow, width: 1),
                             ),
                           ),
                           onPressed: () async {
@@ -229,20 +254,16 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                                 ),
                                 content: const Text(
                                   'Ova radnja je trajna i ne može se poništiti.',
-                                  style:
-                                  TextStyle(color: Colors.white70),
+                                  style: TextStyle(color: Colors.white70),
                                 ),
                                 actions: [
                                   TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(ctx).pop(false),
+                                    onPressed: () => Navigator.of(ctx).pop(false),
                                     child: const Text('Cancel'),
                                   ),
                                   TextButton(
-                                    style: TextButton.styleFrom(
-                                        foregroundColor: Colors.red),
-                                    onPressed: () =>
-                                        Navigator.of(ctx).pop(true),
+                                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                    onPressed: () => Navigator.of(ctx).pop(true),
                                     child: const Text('Delete'),
                                   ),
                                 ],
@@ -256,19 +277,13 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                               await _svc.deleteById(widget.saloonId);
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Salon uspješno obrisan'),
-                                ),
+                                const SnackBar(content: Text('Salon uspješno obrisan')),
                               );
-                              Navigator.of(context)
-                                  .popUntil((route) => route.isFirst);
+                              Navigator.of(context).popUntil((route) => route.isFirst);
                             } catch (e) {
                               if (!mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                      'Greška pri brisanju: $e'),
-                                ),
+                                SnackBar(content: Text('Greška pri brisanju: $e')),
                               );
                             }
                           },
@@ -285,12 +300,10 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red,
                             foregroundColor: Colors.black,
-                            padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: () {
-                            Navigator.of(context)
-                                .popUntil((route) => route.isFirst);
+                            Navigator.of(context).popUntil((route) => route.isFirst);
                           },
                           child: const Text(
                             'Logout',

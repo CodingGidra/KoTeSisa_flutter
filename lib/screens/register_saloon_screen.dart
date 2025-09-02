@@ -3,8 +3,8 @@ import '../models/saloon.dart';
 import '../services/register_saloon_service.dart';
 
 class RegisterSaloonScreen extends StatefulWidget {
-  final Saloon? saloon;   // za edit
-  final bool isEdit;      // ako je true -> radimo PUT umjesto POST
+  final Saloon? saloon;
+  final bool isEdit;
 
   const RegisterSaloonScreen({super.key, this.saloon, this.isEdit = false});
 
@@ -23,7 +23,7 @@ class _RegisterSaloonScreenState extends State<RegisterSaloonScreen> {
   final _lokacijaCtl = TextEditingController();
   final _telefonCtl = TextEditingController();
   final _emailCtl = TextEditingController();
-  final _radnoCtl = TextEditingController(); // koristimo za prikaz/string radnog vremena
+  final _radnoCtl = TextEditingController();
   final _logoCtl = TextEditingController();
   final _adminImeCtl = TextEditingController();
   final _passwordCtl = TextEditingController();
@@ -66,7 +66,7 @@ class _RegisterSaloonScreenState extends State<RegisterSaloonScreen> {
       _telefonCtl.text = s.brojTelefona;
       _emailCtl.text = s.email;
       _adminImeCtl.text = s.adminIme;
-      _passwordCtl.text = s.password;        // (kasnije hash)
+      _passwordCtl.text = s.password;
       _logoCtl.text = s.logo ?? '';
       _vrijemeOd = _parseHHmmss(s.radnoVrijemeOd);
       _vrijemeDo = _parseHHmmss(s.radnoVrijemeDo);
