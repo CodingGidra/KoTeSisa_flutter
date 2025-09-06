@@ -109,7 +109,7 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                s?.nazivSalona ?? '',
+                '${s?.nazivSalona ?? ""} Saloon ',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -118,10 +118,29 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            Text(
-              s?.adminIme ?? '',
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
+      const SizedBox(width: 12),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'Vlasnik:',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12,
+              fontWeight: FontWeight.normal,
             ),
+          ),
+          Text(
+            s?.adminIme ?? '',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
           ],
         ),
       ),
@@ -131,15 +150,6 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
             padding: const EdgeInsets.all(16),
             child: ListView(
               children: [
-                if (widget.isAdmin)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton(
-                      onPressed: _openEditAndRefresh,
-                      child: const Text('Izmijeni info'),
-                    ),
-                  ),
-                const SizedBox(height: 16),
 
                 // Radno vrijeme
                 Card(
@@ -166,10 +176,22 @@ class _SaloonDetailsScreenState extends State<SaloonDetailsScreen> {
                               : 'Nije postavljeno',
                           style: const TextStyle(color: Colors.white70),
                         ),
+                        if (widget.isAdmin)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: FilledButton(
+                              onPressed: _openEditAndRefresh,
+                              child: const Text('Izmijeni info'),
+                            ),
+                          ),
+                        const SizedBox(height: 16)
                       ],
                     ),
                   ),
                 ),
+
+
+
 
                 const SizedBox(height: 16),
 

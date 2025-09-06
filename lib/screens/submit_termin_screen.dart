@@ -5,7 +5,6 @@ import '../services/rezervacije_service.dart';
 import '../models/usluga.dart';
 import '../services/usluge_service.dart';
 
-
 class SubmitTerminScreen extends StatefulWidget {
   const SubmitTerminScreen({super.key});
 
@@ -21,15 +20,16 @@ class _SubmitTerminScreenState extends State<SubmitTerminScreen> {
   TimeOfDay? _radnoOd;
   TimeOfDay? _radnoDo;
 
+  // zauzeća (po danu -> set "HH:mm")
+  final Map<String, Set<String>> _zauzetoPoDanu = {};
+  // dodatni startovi (krajevi rezervacija) po danu -> set "HH:mm"
+  final Map<String, Set<String>> _dodatniStartoviPoDanu = {};
 
-  final Map<String, Set<String>> _zauzetoPoDanu = {
-    _fmtDatum(DateTime.now()): {'10:30', '11:10'},
-    _fmtDatum(DateTime.now().add(const Duration(days: 1))): {'13:30'},
-  };
+  bool _loadingSlots = false;
+  String? _slotsErr;
 
   final DateTime _danas = _bezVremena(DateTime.now());
   late DateTime _odabraniDatum = _danas;
-
   DateTime _mjesecStart = DateTime(DateTime.now().year, DateTime.now().month, 1);
 
   TimeOfDay? _odabranoVrijeme;
@@ -39,6 +39,35 @@ class _SubmitTerminScreenState extends State<SubmitTerminScreen> {
   bool _loadingUsluge = false;
   String? _uslugeError;
   bool _uslugeUcitanJednom = false;
+
+  // ---------- API: učitaj zauzeća za odabrani dan ----------
+  Future<void> _ucitajZauzece() async {
+    if (_saloonId == null) return;
+    if (_radnoOd == null || _radnoDo == null) return;
+
+    setState(() { _loadingSlots = true; _slotsErr = null; });
+    try {
+      final svc = RezervacijeService(baseUrl: 'http://10.0.2.2:5029');
+
+      final det = await svc.fetchSlotoviDetalji(
+        saloonId: _saloonId!,
+        datum: _fmtDatum(_odabraniDatum),
+        od: _fmtHm(_radnoOd!),
+        doo: _fmtHm(_radnoDo!),
+        korak: _korak.inMinutes,
+      );
+
+      final key = _fmtDatum(_odabraniDatum);
+      setState(() {
+        _zauzetoPoDanu[key] = det['zauzeti'] ?? <String>{};
+        _dodatniStartoviPoDanu[key] = det['dodatni_startovi'] ?? <String>{};
+      });
+    } catch (e) {
+      setState(() { _slotsErr = '$e'; });
+    } finally {
+      if (mounted) setState(() { _loadingSlots = false; });
+    }
+  }
 
   Future<void> _ucitajUsluge() async {
     setState(() {
@@ -60,10 +89,8 @@ class _SubmitTerminScreenState extends State<SubmitTerminScreen> {
     }
   }
 
-
   // ---------- POPUP FORMA + SUBMIT ----------
   Future<void> _otvoriPopupRezervacija() async {
-    // Ako usluge nisu učitane, učitaj sada (da izbjegnemo prazan popup)
     if (_usluge.isEmpty && !_loadingUsluge) {
       await _ucitajUsluge();
     }
@@ -120,7 +147,6 @@ class _SubmitTerminScreenState extends State<SubmitTerminScreen> {
                         onPressed: () async {
                           setSBState(() => _loadingUsluge = true);
                           await _ucitajUsluge();
-                          // osvježi prikaz u popupu
                           setSBState(() {});
                         },
                         icon: const Icon(Icons.refresh),
@@ -128,7 +154,6 @@ class _SubmitTerminScreenState extends State<SubmitTerminScreen> {
                       ),
                     ),
                   ] else if (_usluge.isEmpty) ...[
-                    // Ako API vrati 200, ali nema usluga:
                     const Text('Nema definisanih usluga.'),
                     Align(
                       alignment: Alignment.centerLeft,
@@ -244,7 +269,7 @@ class _SubmitTerminScreenState extends State<SubmitTerminScreen> {
     );
 
     if (ok == true) {
-      // po želji: refresh zauzeća
+      await _ucitajZauzece(); // refresh zauzeća nakon kreiranja
     }
   }
   // ---------- /POPUP FORMA + SUBMIT ----------
@@ -294,15 +319,27 @@ class _SubmitTerminScreenState extends State<SubmitTerminScreen> {
     if (od == null || d0 == null) return const [];
     if (_uMinute(od) >= _uMinute(d0)) return const [];
 
-    final out = <TimeOfDay>[];
+    // osnovni slotovi po 15 min
+    final base = <String>{};
     var cur = od;
     final endM = _uMinute(d0);
-
     while (_uMinute(cur) < endM) {
-      out.add(cur);
+      base.add(_fmtHm(cur)); // "HH:mm"
       cur = _izMinuta(_uMinute(cur) + _korak.inMinutes);
     }
-    return out;
+
+    // dodaj tačne krajeve rezervacija (npr. "12:20")
+    final extra = _dodatniStartoviPoDanu[_fmtDatum(_odabraniDatum)] ?? const <String>{};
+    final within = extra.where((s) {
+      final t = _parseHmOrHms(s);
+      final m = _uMinute(t);
+      return m >= _uMinute(od) && m < endM;
+    });
+
+    final all = {...base, ...within};
+    final list = all.map(_parseHmOrHms).toList()
+      ..sort((a, b) => _uMinute(a) - _uMinute(b));
+    return list;
   }
 
   bool _jeZauzet(DateTime dan, TimeOfDay t) {
@@ -331,6 +368,7 @@ class _SubmitTerminScreenState extends State<SubmitTerminScreen> {
     if (_saloonId != null && !_uslugeUcitanJednom) {
       _uslugeUcitanJednom = true;
       _ucitajUsluge();
+      _ucitajZauzece(); // inicijalno punjenje zauzeća za današnji dan
     }
   }
 
@@ -490,6 +528,7 @@ class _SubmitTerminScreenState extends State<SubmitTerminScreen> {
                         _odabraniDatum = _bezVremena(d);
                         _odabranoVrijeme = null;
                       });
+                      _ucitajZauzece(); // učitaj zauzeća za novi dan
                     }
                         : null,
                     child: Container(
@@ -537,16 +576,28 @@ class _SubmitTerminScreenState extends State<SubmitTerminScreen> {
                 child: Text('Nema termina u zadatom radnom vremenu.',
                     style: TextStyle(color: Colors.black54)),
               )
-                  : SlotGrid(
-                slots: slotovi,
-                bookedHmSet: zauzetiSet,
-                selected: _odabranoVrijeme,
-                primary: primarna,
-                onSelect: (t) {
-                  if (_uProslostiDanas(_odabraniDatum, t)) return;
-                  if (_jeZauzet(_odabraniDatum, t)) return;
-                  setState(() => _odabranoVrijeme = t);
-                },
+                  : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_loadingSlots) const LinearProgressIndicator(),
+                  if (_slotsErr != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+                      child: Text(_slotsErr!,
+                          style: const TextStyle(color: Colors.red)),
+                    ),
+                  SlotGrid(
+                    slots: slotovi,
+                    bookedHmSet: zauzetiSet,
+                    selected: _odabranoVrijeme,
+                    primary: primarna,
+                    onSelect: (t) {
+                      if (_uProslostiDanas(_odabraniDatum, t)) return;
+                      if (_jeZauzet(_odabraniDatum, t)) return;
+                      setState(() => _odabranoVrijeme = t);
+                    },
+                  ),
+                ],
               )),
             ),
           ),
